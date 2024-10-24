@@ -447,6 +447,6 @@ type TOrderCheckout = Pick<IOrder, 'total'>;
 
 ### Автор проекта:
 
-[Станислав Казаринов] (mailto:skazarinov@mail.ru "Написать автору")
+[Станислав Казаринов](mailto:skazarinov@mail.ru "Написать автору")
 
-[__В начало__] (#anchor) :point_up:
+[__В начало__](#anchor) :point_up:
