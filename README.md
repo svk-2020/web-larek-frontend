@@ -445,6 +445,12 @@ type TOrderCheckout = Pick<IOrder, 'total'>;
 
 
 
+
+### Ссылка на репозитарий:
+https://github.com/svk-2020/web-larek-frontend.git
+
+
+
 ### Автор проекта:
 
 [Станислав Казаринов](mailto:skazarinov@mail.ru "Написать автору")
