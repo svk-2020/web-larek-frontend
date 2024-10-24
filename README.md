@@ -104,7 +104,7 @@ interface IOrder extends IOrderInfo, IOrderData {
 Выбор формы оплаты 
 
 ```
-type TPayment = 'card' | 'cash';
+type TPayment = 'online' | 'receipt';
 ```
 
 Списки товаров выводимых на основную страницу и в составе заказа 
