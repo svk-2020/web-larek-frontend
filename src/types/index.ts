@@ -35,7 +35,7 @@ export interface IOrder extends IOrderInfo, IOrderData {
 }
 
 // вспомогательные типы
-export type TPayment = 'card' | 'cash';
+export type TPayment = 'online' | 'receipt';
 
 // производные типы
 export type TProductsPage = Omit<IProduct, 'description'>;
