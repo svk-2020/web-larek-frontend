@@ -1,5 +1,6 @@
 # Проектная работа "Веб-ларек"
 <a id="anchor"></a>
+***
 
 Стек: HTML, SCSS, TS, Webpack
 
@@ -17,6 +18,7 @@
 - src/utils/utils.ts — файл с утилитами
 
 ## Установка и запуск
+***
 Для установки и запуска проекта необходимо выполнить команды
 
 ```
@@ -30,7 +32,7 @@ npm run start
 yarn
 yarn start
 ```
-## Сборка
+### Сборка
 
 ```
 npm run build
@@ -42,7 +44,86 @@ npm run build
 yarn build
 ```
 
+## Данные и типы данных, используемые в приложении
+***
+Товар (продукт)
+
+```
+interface IProduct {
+	id: string;
+	title: string;
+	category: string;
+	description: string;
+	image: string;
+	price: number | null;
+}
+```
+
+Каталог товаров выводимых на основную страницу 
+
+```
+interface IProductsData {
+	products: TProductsPage[];
+	getProduct(id: string): IProduct | undefined;
+}
+```
+
+Данные для оформления заказа
+
+```
+interface IOrderInfo {
+    email: string;
+    phone: string;
+    address: string;
+	payment: TPayment;
+}
+```
+
+Данные и методы заказа
+
+```
+interface IOrderData {
+	products: TProductsOrder[];
+	total: number | null;
+	addProduct(item: TProductsOrder): void;
+	checkProduct(id: string): boolean;
+	deleteProduct(id: string): void;
+	getQuantity(): number;
+	getTotal(): number;
+}
+```
+
+Заказ
+
+```
+interface IOrder extends IOrderInfo, IOrderData {
+	clearOrder(): void;
+}
+```
+
+Выбор формы оплаты 
+
+```
+type TPayment = 'card' | 'cash';
+```
+
+Списки товаров выводимых на основную страницу и в составе заказа 
+
+```
+type TProductsPage = Omit<IProduct, 'description'>;
+type TProductsOrder = Pick<IProduct, 'id' |'title' | 'price'>;
+```
+
+Данные заказа в форме на первом, втором и заключительном этапе
+
+```
+type TOrderPaymentAddress = Pick<IOrderInfo, 'payment' | 'address'>;
+type TOrderEmailPhone = Pick<IOrderInfo, 'email' | 'phone'>;
+type TOrderCheckout = Pick<IOrder, 'total'>;
+```
+
 ## Описание проекта
+***
 Проект "Веб-ларек" реализует пример функционально упрощенного сервиса для покупок
 товаров - интернет-магазина.\
 В магазине представлены товары для веб-разработчиков.\
@@ -51,69 +132,146 @@ yarn build
 Проект реализован на TypeScript и представляет собой SPA (Single Page Application)
 с использованием API для получения данных о товарах.
 
-Особенности реализации:
+## Архитектура приложения
+***
+Код приложения разделен на слои согласно парадигме MVP (Model-View-Presenter):
+* __Model__ - слой данных, отвечает за хранение и изменение данных
+* __View__ - слой представления, отвечает за отображение данных на странице,
+* __Presenter__ - презентер, отвечает за связь представления и данных.
+
+### Базовый код
+#### Класс Api
+Содержит в себе базовую логику отправки запросов. В конструктор передается базовый 
+адрес сервера и опциональный объект с заголовками запросов.
+
+Поля:
+* `readonly baseUrl: string` - базовый url для api
+* `protected options: RequestInit` - объект с настройками для формирования запроса
+
+Методы:
+* `protected handleResponse(response: Response): Promise<object>` - обрабатывает ответа с сервера. Если ответ с сервера пришел, то возвращается его в формате json, в противном случае формирует ошибку
+* `get(uri: string): Promise<object>` - выполняет GET запрос на переданный в параметрах ендпоинт и возвращает промис с объектом, которым ответил сервер
+* `post(uri: string, data: object, method: ApiPostMethods = 'POST'): Promise<object>` - принимает объект с данными, которые будут переданы в JSON в теле запроса, и отправляет эти данные на ендпоинт переданный как параметр при вызове метода. По умолчанию выполняется `POST` запрос, но метод запроса может быть переопределен заданием третьего параметра при вызове.
+
+#### Класс EventEmitter
+Брокер событий позволяет отправлять события и подписываться на события, происходящие в системе. Класс используется в презентере для обработки событий и в слоях приложения для генерации событий.
+
+Поля:
+* `_events: Map<EventName, Set<Subscriber>>` - хранит события в виде Map, где ключом является строка или регулярное выражение, а значением сет коллбэков
+
+Основные методы, реализуемые классом описаны интерфейсом `IEvents`:
+* `on<T extends object>(event: EventName, callback: (data: T) => void): void` - Установить обработчик на событие
+* `emit<T extends object>(event: string, data?: T): void` - Инициировать событие с данными
+* `trigger<T extends object>(event: string, context?: Partial<T>): (data: T) => void` - возвращает функцию, при вызове которой инициализируется требуемое в параметрах событие
+
+### Слой данных
+
+#### Класс Product
+Класс отвечает за хранение и логику работы с данными товаров.\
+Конструктор класса принимает инстант брокера событий\
+Данные:
+- `events: IEvents` - экземпляр класса `EventEmitter` для инициации событий при изменении данных.
+- `protected _products: IProduct[]` - массив объектов товаров
+
+Методы:
+- `getProduct(id: string): IProduct` - возвращает товар по его id
+- а так-же сеттеры и геттеры для сохранения и получения данных из полей класса
+
+#### Класс Order
+Класс отвечает за хранение и логику работы с данными заказа.\
+Конструктор класса принимает инстант брокера событий\
+Данные:
+- `events: IEvents` - экземпляр класса `EventEmitter` для инициации событий при изменении данных.
+- `protected _products: TProductsOrder[]` - массив объектов товаров добавленных в заказ
+- `protected _total: number` - суммарная стоимость товаров в заказе
+- `protected _email: string` - email заказчика
+- `protected _phone: string` - номер телефона заказчика
+- `protected _address: string` - адрес заказчика
+- `protected _payment: TPayment` - способ оплаты
+
+Методы:
+- `addProduct(item: TProductsOrder): void` - добавляет товар в заказ
+- `checkProduct(id: string): boolean` - проверяет наличие товара в заказе
+- `deleteProduct(id: string): void` - удаляет товар из заказа
+- `getQuantity(): number` - возвращает количество товаров в заказе
+- `getTotal(): number` - возвращает суммарную стоимость заказа
+- `clearOrder(): void` - очищает данные заказа (после оформления)
+- а так-же сеттеры и геттеры для сохранения и получения данных из полей класса
+
+### Слой представления
+
+#### Класс BaseView
+Абстрактный класс, является базовым родительским классом для ВСЕХ классов слоя представления.
+
+Поля:
+- `protected _container` - DOM элемент компонента
+- `events: IEvents` - экземпляр класса `EventEmitter` для инициации событий при изменении данных.
+
+Конструктор принимает DOM элемент компонента и экземпляр класса `EventEmitter`
+
+Методы:
+- render(): HTMLElement - возвращает html-элемент по переданным данным
+
+#### Класс Card
+Абстрактный класс, в который вынесены общие поля всех разновидностей карточек
+имеющихся в приложении:
+- CardCatalog, карточка в каталоге на главной странице;
+- CardDetail, карточка с детальным описанием товара в модальном окне;
+- CardOrder, карточка товара в заказе
+
+Поля:
+- `protected _id` - id карточки товара
+- `protected _title` - html-элемент, отвечающий за отображение имени товара
+- `protected _price` - html элемент, отвечающий за отображение цены товара
+
+Конструктор принимает параметры базового класса BaseView
+ 
+Методы:
+- сеттеры и геттеры для сохранения и получения данных из полей класса
+
+#### Класс CardCatalog
+Расширяет класс Card. Служит для отображения карточки в каталоге на главной странице.
+
+Поля:
+- `protected _category` - html-элемент, отвечающий за отображение категории товара
+- `protected _image` - html-элемент, отвечающий за отображение изображения товара
+
+Конструктор принимает параметры базового класса BaseView
+
+Методы:
+- сеттеры и геттеры для сохранения и получения данных из полей класса
+
+#### Класс CardDetail
+Расширяет класс Card. Служит для отображения карточки с детальным описанием товара в модальном окне.
+
+Поля:
+- `protected _description` - html-элемент, отвечающий за отображение описания товара
+- `buttonOrder` - кнопка для добавления товара в заказ (или удаления из заказа)
+
+Конструктор принимает параметры базового класса BaseView
+
+Методы:
+- сеттеры и геттеры для сохранения и получения данных из полей класса
+
+#### Класс CardOrder
+Расширяет класс Card. Служит для отображения карточки товара в заказе.
+
+Поля:
+- `index` - html-элемент, отвечающий за отображение порядкового номера в корзине
+- `buttonDelete` - кнопка для удаления товара из заказа (иконка корзины)
+
+Конструктор принимает параметры базового класса BaseView
+
+Методы:
+- сеттеры и геттеры для сохранения и получения данных из полей класса
+
+#### Класс MainCatalog
+Расширяет класс BaseView. Отвечает за отображение блока с карточками товаров на главной странице. 
 
 
-## Данные и типы данных, используемые в приложении
-
-Товар (продукт)
-
-```
-export interface IProduct {
-    id: string;
-    title: string;
-    category: string;
-    description: string;
-    image: string;
-    price: number | null;
-}
-```
-
-Заказ
-
-```
-export interface IOrder {
-    email: string;
-    phone: string;
-    address: string;
-    payment: TPayment;
-    products: IProduct[];
-    total: number | null;
-}
-```
-
-Интерфейс для каталога товаров выводимых на основную страницу 
-
-```
-export interface IProductsData {
-    products: TProductCatalog[];
-    detail: string | null;
-}
-```
-
-Выбор формы оплаты 
-
-```
-export type TPayment = 'card' | 'cash';
-```
-
-Списки товаров выводимых на основную страницу и в составе заказа 
-
-```
-export type TProductsPage = Omit<IProduct, 'description'>;
-export type TProductsOrder = Pick<IProduct, 'title' | 'price'>;
-```
-
-Данные заказа в форме на первом, втором и заключительном этапе
-
-```
-export type TOrderPaymentAddress = Pick<IOrder, 'payment' | 'address'>;
-export type TOrderEmailPhone = Pick<IOrder, 'email' | 'phone'>;
-export type TOrderCheckout = Pick<IOrder, 'total'>;
-```
 
 ### Автор проекта:
 
-[Казаринов С.В.](mailto:skazarinov@mail.ru "Написать автору")
+[Станислав Казаринов] (mailto:skazarinov@mail.ru "Написать автору")
 
-[__В начало__](#anchor) :point_up:
+[__В начало__] (#anchor) :point_up:
