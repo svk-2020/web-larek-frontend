@@ -13,7 +13,7 @@
 - src/pages/index.html — HTML-файл главной страницы
 - src/types/index.ts — файл с типами
 - src/index.ts — точка входа приложения
-- src/styles/styles.scss — корневой файл стилей
+- src/scss/styles.scss — корневой файл стилей
 - src/utils/constants.ts — файл с константами
 - src/utils/utils.ts — файл с утилитами
 
@@ -45,11 +45,9 @@ yarn build
 ```
 
 ## Данные и типы данных, используемые в приложении
-***
-Товар (продукт)
-
+Товар и список товаров
 ```
-interface IProduct {
+export interface IProduct {
 	id: string;
 	title: string;
 	category: string;
@@ -57,69 +55,82 @@ interface IProduct {
 	image: string;
 	price: number | null;
 }
-```
-
-Каталог товаров выводимых на основную страницу 
-
-```
-interface IProductsData {
-	products: TProductsPage[];
+export interface IProductsList {
+	products: IProduct[];
 	getProduct(id: string): IProduct | undefined;
 }
 ```
-
-Данные для оформления заказа
-
+Товарная корзина
 ```
-interface IOrderInfo {
+export interface IBasketList {
+    shipments: IProduct[];
+    addShipment(item: IProduct): void;
+    deleteShipment(id: string): void;
+    checkProduct(id: string): boolean;
+    getQuantity(): number;
+    getTotal(): number;
+    getIds(): string[];
+    clearBasket(): void;
+}
+```
+Заказ
+```
+export interface IOrder {
+    payment: TFormPayment;
     email: string;
     phone: string;
     address: string;
-	payment: TPayment;
+    total: number;
+    items: string[];
+}
+
+export interface IOrderInfo extends IOrder {
+    orderInfo: IOrder;
+}
+
+// Паттерн Builder, для поэтапного составления заказа
+export interface IOrderBuilder {
+    infoShipments: TInfoShipments;
+    infoDelivery: TInfoDelivery;
+    infoContacts: TInfoContacts;
+    getOrder(): IOrder;
+}
+
+export interface IOrderConstructor {
+    new (): IOrderInfo;
+}
+
+// Завершение заказа
+export interface ISuccess {
+    orderSuccess: TSuccess;
 }
 ```
-
-Данные и методы заказа
-
+Типы классов слоя данных и слоя представления
 ```
-interface IOrderData {
-	products: TProductsOrder[];
-	total: number | null;
-	addProduct(item: TProductsOrder): void;
-	checkProduct(id: string): boolean;
-	deleteProduct(id: string): void;
-	getQuantity(): number;
-	getTotal(): number;
-}
-```
+export type TInfoShipments = Pick<IOrder, 'total' | 'items'>;
+export type TInfoDelivery = Pick<IOrder, 'payment' | 'address'>;
+export type TInfoContacts = Pick<IOrder, 'email' | 'phone' >
+export type TProductsPage = Omit<IProduct, 'description'>;
+export type TCategory = 'card__category_soft' |
+	'card__category_other' |
+	'card__category_additional' |
+	'card__category_button' |
+	'card__category_hard';
+export type TCategoryClasses = Record<string, TCategory>;
+export type TCardBasket = Pick<IProduct, 'id' | 'title' | 'price'> & {index: number};
+export type TCardDetail = IProduct & {priceCheck: boolean; state: boolean};
 
-Заказ
+export type TPage = {counter: number, catalog: HTMLElement[]};
+export type TBasket = {cardsList: HTMLElement[]; total: number; emptyCheck: boolean};
+export type TModal ={content: HTMLElement};
+export type TForm = {valid: boolean}
+export type TFormPayment = 'card' | 'cash';
+export type TFormOrder = {payment: TFormPayment; address: string};
+export type TFormContacts = {email: string; phone: string};
 
-```
-interface IOrder extends IOrderInfo, IOrderData {
-	clearOrder(): void;
-}
-```
-
-Выбор формы оплаты 
-
-```
-type TPayment = 'online' | 'receipt';
-```
-
-Списки товаров выводимых на основную страницу и в составе заказа 
-
-```
-type TProductsPage = Omit<IProduct, 'description'>;
-type TProductsOrder = Pick<IProduct, 'id' |'title' | 'price'>;
-```
-
-Данные заказа в форме на первом, втором и заключительном этапе
-
-```
-type TOrderPaymentAddress = Pick<IOrderInfo, 'payment' | 'address'>;
-type TOrderEmailPhone = Pick<IOrderInfo, 'email' | 'phone'>;
-type TOrderCheckout = Pick<IOrder, 'total'>;
+export type TSuccess = {id: string; total: number};
+export type TOrderSuccess = {description: string};
+export type TId = {id: string};
 ```
 
 ## Описание проекта
@@ -174,13 +185,20 @@ type TOrderCheckout = Pick<IOrder, 'total'>;
 ### Слой данных
 ***
 
+#### Класс Base
+Абстрактный класс, является базовым родительским классом для классов слоя данных.
 
-#### Класс Product
-Класс отвечает за хранение и логику работы с данными товаров.\
+Поля:
+- `protected events: IEvents` - экземпляр класса `EventEmitter` для инициации событий при изменении данных.
+
+Конструктор класса принимает инстант брокера событий
+
+
+#### Класс Products
+Расширяет класс Base. Класс отвечает за хранение и логику работы с данными товаров.\
 
 Данные:
-- `events: IEvents` - экземпляр класса `EventEmitter` для инициации событий при изменении данных.
-- `protected _products: IProduct[]` - массив объектов товаров
+- `protected _products: IProduct[]` - список всех товаров в ларьке 
 
 Конструктор класса принимает инстант брокера событий
 
@@ -189,36 +207,72 @@ type TOrderCheckout = Pick<IOrder, 'total'>;
 - а так-же сеттеры и геттеры для сохранения и получения данных из полей класса
 
 
-#### Класс Order
-Класс отвечает за хранение и логику работы с данными заказа.\
+#### Класс Basket
+Расширяет класс Base. Класс отвечает за хранение и логику работы с корзиной заказа.\
 
 Данные:
-- `events: IEvents` - экземпляр класса `EventEmitter` для инициации событий при изменении данных.
-- `protected _products: TProductsOrder[]` - массив объектов товаров добавленных в заказ
-- `protected _total: number` - суммарная стоимость товаров в заказе
-- `protected _email: string` - email заказчика
-- `protected _phone: string` - номер телефона заказчика
-- `protected _address: string` - адрес заказчика
-- `protected _payment: TPayment` - способ оплаты
+- `protected _shipments: IProduct[]` - список товаров добавленных в корзину
 
 Конструктор класса принимает инстант брокера событий
 
 Методы:
-- `addProduct(item: TProductsOrder): void` - добавляет товар в заказ
-- `checkProduct(id: string): boolean` - проверяет наличие товара в заказе
-- `deleteProduct(id: string): void` - удаляет товар из заказа
-- `getQuantity(): number` - возвращает количество товаров в заказе
-- `getTotal(): number` - возвращает суммарную стоимость заказа
-- `clearOrder(): void` - очищает данные заказа (после оформления)
+- `addShipment(item: IProduct): void` - добавляет товар в корзину
+- `deleteShipment(id: string): void` - удаляет товар из корзины
+- `checkProduct(id: string): boolean` - проверяет наличие товара в корзине
+- `get shipments(): IProduct[]` - получение списка товаров в корзине
+- `getQuantity(): number` - возвращает количество товаров в корзине
+- `getTotal(): number` - возвращает суммарную стоимость товаров в корзине
+- `clearBasket(): void` - очищает данные заказа после оформления
+- `getIds(): string` - возвращает список id товаров  
+
+
+#### Класс Order
+Расширяет класс Base. Класс отвечает за оформление заказа.\
+
+Данные:
+- `protected _payment: TFormPayment` - способ оплаты
+- `protected _email: string` - email заказчика
+- `protected _phone: string` - номер телефона заказчика
+- `protected _address: string` - адрес заказчика
+- `protected _total: number` - суммарная стоимость товаров в заказе
+- `protected _items: string[]` - список id товаров заказа
+
+Конструктор класса принимает инстант брокера событий
+
+Методы:
+- `get orderInfo(): IOrder` - возвращает информацию о заказе, для отправки в теле post запроса на сервер.
 - а так-же сеттеры и геттеры для сохранения и получения данных из полей класса
+
+#### Класс OrderBuilder
+Расширяет класс Base. Реализует паттерн Builder для поэтапного создания экземпляра класса Order. \
+Данные:
+- `protected order: IOrderInfo` - экземпляр интерфейса
+
+Конструктор класса принимает инстант брокера событий и:
+- `orderConstructor: IOrderConstructor` - класс, создающий объекты интерфейса IOrder
+
+Методы:
+- `set infoShipments(info: TInfoShipments)` - добавляет в заказ информацию из корзины
+- `set infoDelivery(info: TInfoDelivery)` - добавляет в заказ информацию из формы Order (адрес доставки)
+- `set infoContacts(info: TInfoContacts)` - добавляет в заказ информацию из формы Contacts
+- `getOrder(): IOrderInfo` - возвращает результат
+
+#### Класс OrderSuccess
+Расширяет класс Base. Обрабатывает данные с сервера после успешного оформления заказа. \
+Данные:
+- `protected _orderSuccess: TSuccess` - данные заказа с сервера
+
+Конструктор класса принимает инстант брокера событий
+
+Методы:
+- сеттер и геттер для сохранения и получения данных из полей класса
 
 
 ### Слой представления
 ***
 
-
 #### Класс BaseView
-Абстрактный класс, является базовым родительским классом для ВСЕХ классов слоя представления.
+Абстрактный класс, является базовым родительским классом для классов слоя представления.
 
 Поля:
 - `protected _container` - DOM элемент компонента
@@ -235,7 +289,7 @@ type TOrderCheckout = Pick<IOrder, 'total'>;
 имеющихся в приложении:
 - CardCatalog, карточка в каталоге на главной странице;
 - CardDetail, карточка с детальным описанием товара в модальном окне;
-- CardOrder, карточка товара в заказе
+- CardBasket, карточка товара в корзине
 
 Поля:
 - `protected _id` - id карточки товара
@@ -249,83 +303,66 @@ type TOrderCheckout = Pick<IOrder, 'total'>;
 
 
 #### Класс CardCatalogView
-Расширяет класс Card. Служит для отображения карточки в каталоге на главной странице.
+Расширяет класс CardView. Служит для отображения карточки в каталоге на главной странице.
 
 Поля:
 - `protected _category` - html-элемент, отвечающий за отображение категории товара
 - `protected _image` - html-элемент, отвечающий за отображение изображения товара
 
-Конструктор принимает параметры базового класса BaseView
+Конструктор принимает параметры базового класса CardView
 
 Методы:
+- `protected addCardCategory(value: string)` - в зависимости от названия, добавляет соответствующий класс карточке товара 
 - сеттеры и геттеры для сохранения и получения данных из полей класса
 
 
 #### Класс CardDetailView
-Расширяет класс Card. Служит для отображения карточки с детальным описанием товара в модальном окне.
+Расширяет класс CardCatalogView. Служит для отображения карточки с детальным описанием товара в модальном окне.
 
 Поля:
 - `protected _description` - html-элемент, отвечающий за отображение описания товара
 - `buttonOrder` - кнопка для добавления товара в заказ (или удаления из заказа)
 
-Конструктор принимает параметры базового класса BaseView
+Конструктор принимает параметры базового класса CardDetailView
 
 Методы:
-- сеттеры и геттеры для сохранения и получения данных из полей класса
+- `set description(value: string)` - устанавливает описание товара
+- `set checkPrice(value: boolean)` - устанавливает флаг для блокировки кнопки добавления товара в корзину (в зависимости от стоимости товара) 
+- `get checkPrice(): boolean` - возвращает состояние флага блокировки
+- `set stateButton(value: boolean)` - устанавливает состояние кнопки добавления товара в заказ. В случе если у товара нет цены - он не продается.
 
 
-#### Класс CardOrderView
-Расширяет класс Card. Служит для отображения карточки товара в заказе.
+#### Класс CardBasketView
+Расширяет класс CardView. Служит для отображения карточки товара в корзине.
 
 Поля:
 - `index` - html-элемент, отвечающий за отображение порядкового номера в корзине
 - `buttonDelete` - кнопка для удаления товара из заказа (иконка корзины)
 
-Конструктор принимает параметры базового класса BaseView
+Конструктор принимает параметры базового класса CardView
 
 Методы:
 - сеттеры и геттеры для сохранения и получения данных из полей класса
 
 
-#### Класс CatalogView
-Расширяет класс BaseView. Служит для отображения блока с карточками товаров на главной странице. 
+#### Класс PageView
+Расширяет класс BaseView. Служит для отображения главной страницы приложения. \
+Блоки главной страницы:
+- каталог с карточками товаров
+- корзина в шапке сайта
 
 Поля:
 - `protected _catalog` - контейнер для отображения карточек товаров
+- `protected buttonBasket` - кнопка в виде корзины, открывающая модальное окно с заказом
+- `protected _counter` - html-элемент, показывает количество товаров в заказе
+- `protected screen` - html-элемент - содержимое экрана
 
 Конструктор принимает параметры базового класса BaseView
 
 Методы:
 - `set catalog(cards: HTMLElement[])` - сеттер записывающий карточки в каталог
-
-
-#### Класс BasketView
-Расширяет класс BaseView. Служит для отображения корзины с заказом в шапке сайта 
-
-Поля:
-- `protected buttonBasket` - кнопка в виде корзины, открывающая модальное окно с заказом
-- `protected _counter` - html-элемент, показывает количество товаров в заказе
-
-Конструктор принимает параметры базового класса BaseView
-
-Методы:
 - `set counter(value: string)` - сеттер, записывает количество товаров в заказе
-
-
-#### Класс OrderView
-Расширяет класс BaseView. Служит для отображения заказа с товарами. 
-
-Поля:
-- `protected _orderList` - html-элемент, список товаров в заказе
-- `protected _total` - html-элемент, общая стоимость товаров
-- `protected buttonPlaceOrder` - кнопка "Оформить" (заказ)
-
-Конструктор принимает параметры базового класса BaseView
-
-Методы:
-- `set cardsList(cards: HTMLElement[])` - сеттер записывающий список товаров в заказ
-- `set total(value: number)` - сеттер устанавливающий общую стоимость товаров
-
+- `lockScreen(value: boolean): void` - блокировка/разблокировка экрана при открытии модального окна
 
 #### Класс ModalView
 Расширяет класс BaseView. Реализует модальное окно. 
@@ -342,6 +379,20 @@ type TOrderCheckout = Pick<IOrder, 'total'>;
 - `open(): void` - метод для открытия модального окна
 - `close(): void` - метод для закрытия модального окна
 
+#### Класс BasketView
+Расширяет класс BaseView. Служит для отображения корзины с товарами. 
+
+Поля:
+- `protected _orderList` - html-элемент, список товаров в заказе
+- `protected _total` - html-элемент, общая стоимость товаров
+- `protected buttonCheckout` - кнопка "Оформить" (заказ)
+
+Конструктор принимает параметры базового класса BaseView
+
+Методы:
+- `set cardsList(cards: HTMLElement[])` - сеттер записывающий список товаров в заказ
+- `set emptyCheck(state: boolean)` - сеттер устанавливающий состояние кнопки оформления заказа
+- `set total(value: number)` - сеттер устанавливающий общую стоимость товаров
 
 #### Класс FormView
 Абстрактный класс, в который вынесены общие поля и методы всех разновидностей форм
@@ -364,25 +415,30 @@ type TOrderCheckout = Pick<IOrder, 'total'>;
 - `clear(): void` - очистка формы
 
 
-#### Класс FormDelivery
+#### Класс FormOrderView
 Расширяет класс FormView. 
 Реализует форму для заполнения метода оплаты и адреса доставки
 
 Поля:
-- `protected buttonPayOnline: HTMLButtonElement` - кнопка оплаты онлайн
-- `protected buttonPayReceipt: HTMLButtonElement` - кнопка оплаты при получении
+- `protected buttonCard: HTMLButtonElement` - кнопка оплаты онлайн
+- `protected buttonCash: HTMLButtonElement` - кнопка оплаты при получении
 - `protected inputAddress: HTMLInputElement` - поле ввода адреса заказчика
 
 Конструктор принимает параметры базового класса FormView
 
 Методы:
+- `protected getButtonActive(): HTMLButtonElement | null` - возвращает активную кнопку
+- `protected resetButtons(): void` - снимает активность с кнопок выбора формы оплаты
+- `clear()` - очистка формы
+- `get payment(): TFormPayment` - возвращает название активной кнопки
 - `get address(): string` - возвращает адрес заказчика
-- служебные методы будут задокументированы в процессе реализации
+- `get valid(): boolean` - возвращает валидность формы
+- `set valid(value: boolean)` - устанавливает блокировку кнопки Submit
 
 
-#### Класс FormContacts
+#### Класс FormContactsView
 Расширяет класс FormView. 
-Реализует форму для заполнения Email и номера телефона
+Реализует форму для заполнения контактных данных.
 
 Поля:
 - `protected inputEmail: HTMLInputElement` - поле ввода Email заказчика
@@ -393,20 +449,22 @@ type TOrderCheckout = Pick<IOrder, 'total'>;
 Методы:
 - `get email(): string` - возвращает Email заказчика
 - `get phone(): string` - возвращает номер телефона заказчика
+- `get valid(): boolean` - возвращает валидность формы
+- `set valid(value: boolean)` - устанавливает блокировку кнопки Submit
 
 
-#### Класс CheckoutView
+#### Класс OrderSuccessView
 Расширяет класс BaseView. 
 Реализует уведомление об окончании оформления заказа
 
 Поля:
-- `protected _total` - html-элемент, выводит сумму списанных средств
-- `protected buttonCheckout: HTMLButtonElement` - кнопка "За новыми покупками"
+- `protected _description` - html-элемент, выводит сумму списанных средств
+- `protected buttonOrderSuccess: HTMLButtonElement` - кнопка "За новыми покупками"
 
 Конструктор принимает параметры базового класса BaseView
 
 Методы:
-- `set total(value: string): void` - устанавливает сумму списанных средств
+- `set description(total: string): void` - устанавливает сумму списанных средств
 
 
 ### Слой коммуникации
@@ -414,6 +472,13 @@ type TOrderCheckout = Pick<IOrder, 'total'>;
 
 #### Класс AppApi
 Принимает в конструктор экземпляр класса Api и предоставляет методы реализующие взаимодействие с бэкендом сервиса.
+
+Поля:
+- `protected cdn: string` - html-элемент, выводит сумму списанных средств
+
+Параметры в конструкторе:
+- параметры `Api`
+- `cdn: string` - базовый путь до изображений карточек.
 
 
 ## Взаимодействие компонентов
@@ -426,23 +491,25 @@ type TOrderCheckout = Pick<IOrder, 'total'>;
 ### *Список всех событий, которые могут генерироваться в системе:*
 
 #### *События изменения данных (генерируются классами моделями данных)*
-- `products:changed` - изменение массива товаров (загрузка списка с сервера)
-- `order:changed` - изменение массива заказа (добавление и удаление товаров в заказ)
-- `checkout:changed` - окончание оформления заказа
+- `products:change` - изменение списка товаров (загрузка списка с сервера)
+- `shipments:change` - изменение списка заказа (добавление и удаление товаров в заказ)
+- `success:change` - окончание оформления заказа
 
 #### *События, возникающие при взаимодействии пользователя с интерфейсом (генерируются классами, отвечающими за представление)*
 - `modal:open` - открытие модального окна
 - `modal:close` - закрытие модального окна
-- `detail:open` - открытие модального окна c детальной информацией о товаре
-- `order:open` - открытие модального окна c заказом
-- `order:add` - добавление товара в заказ
-- `order:delete` - удаление товара из заказа
-- `form:open` - открытие модального окна с формой доставки
-- `form-delivery:input` - действия заказчика с полями формы доставки
-- `form-delivery:submit` - успешная отправка формы доставки
-- `form-contacts:input` - действия заказчика с полями формы контактных данных
-- `form-contacts:submit` - успешная отправка формы контактных данных
+- `modal-detail:open` - открытие модального окна c детальной информацией о товаре
+- `modal-basket:open` - открытие модального окна c корзиной заказа
 
+- `shipments:add` - добавление товара в заказ
+- `shipments:delete` - удаление товара из заказа
+
+- `form:open` - открытие модального окна с формой
+- `order:input` - действия заказчика с полями формы Order
+- `order:submit` - успешная отправка формы Order
+- `contacts:input` - действия заказчика с полями формы Contacts
+- `contacts:submit` - успешная отправка формы Contacts
+- `success:confirm` - получение уведомления об успешном оформлении заказа
 
 
 
